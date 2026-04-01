@@ -26,12 +26,17 @@ def run(task: str):
     print("\n" + "="*50)
     print("SEARCH RESULTS:")
     print("="*50)
+    print("\n" + "="*50)
+    print("RESEARCH SUMMARY:")
+    print("="*50)
+    print(result["research_summary"])
     for i, r in enumerate(result["search_results"], 1):
         print(f"\n{i}. {r['title']}")
         print(f"   URL: {r['url']}")
         print(f"   {r['snippet'][:150]}...")
+
     
     return result
-
+   
 if __name__ == "__main__":
     run("latest AI agent frameworks and tools 2026")
