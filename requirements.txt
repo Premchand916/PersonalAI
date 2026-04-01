@@ -1,0 +1,17 @@
+# Run this to auto-generate from your current environment
+pip freeze > requirements.txt
+
+# Or create manually (cleaner):
+# requirements.txt
+langgraph
+langchain
+langchain-ollama
+langchain-community
+tavily-python
+python-dotenv
+fastapi
+uvicorn
+chainlit
+httpx
+beautifulsoup4
+tweepy
