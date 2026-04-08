@@ -4,7 +4,7 @@ from typing import Annotated, List, NotRequired, Optional, TypedDict
 
 class PersonalAIState(TypedDict):
     task: str
-    post_to_telegram: bool
+    post_to_telegram: bool 
     search_queries: List[str]
     search_results: List[dict]
     scraped_content: List[str]

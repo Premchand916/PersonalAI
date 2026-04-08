@@ -4,15 +4,13 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 from orchestrator.graph import build_graph
-from orchestrator.state import PersonalAIState
-
+from memory.store import init_db, save_run    # ← ADD THIS
 
 def run(task: str, post_to_telegram: bool = False):
-    graph = build_graph()
+    graph  = build_graph()
+    init_db()                                  # ← ADD THIS (safe to call every time)
 
-    # Initial state — only fields defined in PersonalAIState
-    # post_to_telegram is passed as function arg, not in state
-    initial_state: PersonalAIState = {
+    initial_state = {
         "task":             task,
         "post_to_telegram": post_to_telegram,
         "search_queries":   [],
@@ -26,11 +24,18 @@ def run(task: str, post_to_telegram: bool = False):
         "current_agent":    "search_agent",
     }
 
-    print(f"\n🚀 Starting PersonalAI pipeline...")
-    print(f"   Task: {task}")
-    print(f"   Telegram: {'enabled' if post_to_telegram else 'disabled'}")
-
     result = graph.invoke(initial_state)
+
+    # ── SAVE TO MEMORY ─────────────────────────────────────────────
+    run_id = save_run(                         # ← ADD THIS BLOCK
+        task=    task,
+        summary= result.get("research_summary", ""),
+        thread=  result.get("thread") or result.get("twitter_thread", []),
+        status=  result.get("final_status", "unknown"),
+        sources= len(result.get("scraped_content", [])),
+    )
+    print(f"\n[Memory] Run saved as #{run_id}")
+   
 
     # ── STATUS ────────────────────────────────────────────────────
     print("\n" + "="*50)
