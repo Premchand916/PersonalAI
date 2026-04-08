@@ -1,13 +1,19 @@
 import asyncio
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, cast
 
 from dotenv import load_dotenv
 
 try:
-    import telegram
+    import telegram as telegram_module
 except ImportError:
-    telegram = None
+    telegram_module = None
+
+if TYPE_CHECKING:
+    from telegram import Bot
+else:
+    Bot = Any
 
 load_dotenv()
 
@@ -25,7 +31,7 @@ class PostFailure:
     detail: str
 
 
-async def _send_thread(bot: "telegram.Bot", chat_id: str, posts: list[str]) -> PostSuccess:
+async def _send_thread(bot: Bot, chat_id: str, posts: list[str]) -> PostSuccess:
     message_ids = []
 
     header = await bot.send_message(
@@ -58,12 +64,13 @@ def post_thread(posts: list[str]) -> PostSuccess | PostFailure:
     if not posts:
         return PostFailure(reason="EMPTY", detail="No posts to publish.")
 
-    if telegram is None:
+    if telegram_module is None:
         return PostFailure(
             reason="MISSING_DEPENDENCY",
             detail="python-telegram-bot is not installed.",
         )
 
+    telegram = cast(Any, telegram_module)
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 

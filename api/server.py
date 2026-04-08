@@ -8,6 +8,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, field_validator
 
+from orchestrator.state import PersonalAIState
+
 load_dotenv()
 
 app = FastAPI(
@@ -66,7 +68,7 @@ def favicon() -> Response:
 
 @app.post("/research", response_model=ResearchResponse)
 async def research(request: ResearchRequest) -> ResearchResponse:
-    initial_state = {
+    initial_state: PersonalAIState = {
         "task": request.task,
         "post_to_telegram": request.post_to_telegram,
         "search_queries": [],
@@ -90,7 +92,7 @@ async def research(request: ResearchRequest) -> ResearchResponse:
         status=result.get("final_status", "unknown"),
         task=request.task,
         research_summary=result.get("research_summary", ""),
-        thread=result.get("thread", []),
+        thread=result.get("thread") or result.get("twitter_thread", []),
         sources_found=len(result.get("search_results", [])),
         sources_used=len(result.get("scraped_content", [])),
         error=result.get("error"),

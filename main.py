@@ -1,6 +1,7 @@
 # main.py
 
 from orchestrator.graph import build_graph
+from orchestrator.state import PersonalAIState
 
 
 def run(task: str, post_to_telegram: bool = False):
@@ -8,8 +9,9 @@ def run(task: str, post_to_telegram: bool = False):
 
     # Initial state — only fields defined in PersonalAIState
     # post_to_telegram is passed as function arg, not in state
-    initial_state = {
+    initial_state: PersonalAIState = {
         "task":             task,
+        "post_to_telegram": post_to_telegram,
         "search_queries":   [],
         "search_results":   [],
         "scraped_content":  [],
@@ -62,7 +64,7 @@ def run(task: str, post_to_telegram: bool = False):
 
     # ── THREAD POSTS ──────────────────────────────────────────────
     print(f"\n{'='*50}")
-    thread = result.get("thread", [])
+    thread = result.get("thread") or result.get("twitter_thread", [])
     print(f"📨 THREAD ({len(thread)} posts):")
     print("="*50)
 

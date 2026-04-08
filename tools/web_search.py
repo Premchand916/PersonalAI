@@ -1,12 +1,18 @@
 import os
 from functools import lru_cache
+from typing import TYPE_CHECKING, Any
 
 from dotenv import load_dotenv
 
 try:
-    from tavily import TavilyClient
+    from tavily import TavilyClient as TavilyClientClass
 except ImportError:
-    TavilyClient = None
+    TavilyClientClass = None
+
+if TYPE_CHECKING:
+    from tavily import TavilyClient as TavilyClientType
+else:
+    TavilyClientType = Any
 
 load_dotenv()
 
@@ -16,8 +22,8 @@ class WebSearchError(RuntimeError):
 
 
 @lru_cache(maxsize=1)
-def get_tavily_client():
-    if TavilyClient is None:
+def get_tavily_client() -> TavilyClientType:
+    if TavilyClientClass is None:
         raise WebSearchError(
             "tavily-python is not installed. Install the project dependencies first."
         )
@@ -26,7 +32,7 @@ def get_tavily_client():
     if not api_key:
         raise WebSearchError("TAVILY_API_KEY is not set.")
 
-    return TavilyClient(api_key=api_key)
+    return TavilyClientClass(api_key=api_key)
 
 
 def web_search(query: str, max_results: int = 5) -> list[dict]:
