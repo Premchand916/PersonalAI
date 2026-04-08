@@ -13,18 +13,14 @@ graph = build_graph()
 
 @cl.on_chat_start
 async def on_chat_start():
-    """
-    Runs when user opens the chat.
-    Sets up the session and shows welcome message.
-    """
-    # Store graph in user session
-    # Why? Each user gets their own session — no state mixing between users
+    """Runs when user opens the chat."""
     cl.user_session.set("graph", graph)
 
     await cl.Message(
         content=(
             "👋 **Welcome to PersonalAI**\n\n"
-            "Your personal Perplexity Computer — powered by LangGraph + Ollama.\n\n"
+            "Your personal Perplexity Computer — "
+            "powered by LangGraph + Ollama.\n\n"
             "**What I can do:**\n"
             "- 🔍 Search the web for any topic\n"
             "- 📚 Read and synthesize multiple sources\n"
@@ -39,7 +35,7 @@ async def on_chat_start():
 async def on_message(message: cl.Message):
     """
     Runs every time user sends a message.
-    Executes the full pipeline with real-time progress updates.
+    Uses graph.astream() to show progress after each agent.
     """
     task = message.content.strip()
 
@@ -47,11 +43,7 @@ async def on_message(message: cl.Message):
         await cl.Message(content="Please enter a research topic.").send()
         return
 
-    # ── Step 1: Show immediate feedback ───────────────────────────
-    # User sees this instantly — system doesn't look frozen
-    thinking = await cl.Message(content="🔍 Starting research pipeline...").send()
-
-    # ── Step 2: Build initial state ───────────────────────────────
+    # ── Initial state ──────────────────────────────────────────────
     initial_state = {
         "task":             task,
         "search_queries":   [],
@@ -65,66 +57,148 @@ async def on_message(message: cl.Message):
         "current_agent":    "search_agent",
     }
 
-    # ── Step 3: Run pipeline with step-by-step updates ────────────
+    # ── Kick off with immediate feedback ──────────────────────────
+    # User sees this instantly — no frozen screen
+    await cl.Message(
+        content=f"🚀 **Starting research pipeline...**\n`{task}`"
+    ).send()
+
+    # ── These accumulate as agents finish ─────────────────────────
+    # We need them at the end to show final results
+    final_search_results  = []
+    final_summary         = ""
+    final_thread          = []
+    final_status          = "unknown"
+    final_error           = None
+
     try:
-        # Search step
-        await cl.Message(content="🔍 **Step 1/3** — Searching the web...").send()
+        # ── THE KEY CHANGE: astream instead of invoke ─────────────
+        # astream() is async — no need for asyncio.to_thread()
+        # It yields one chunk per agent as each finishes
+        async for chunk in graph.astream(initial_state):
 
-        # Run graph in thread (same pattern as FastAPI)
-        import asyncio
-        result = await asyncio.to_thread(graph.invoke, initial_state)
+            # ── CHUNK FROM SEARCH AGENT ───────────────────────────
+            if "search_agent" in chunk:
+                data    = chunk["search_agent"]
+                results = data.get("search_results", [])
+                queries = data.get("search_queries", [])
 
-        # ── Step 4: Show results progressively ────────────────────
+                # Save for final display
+                final_search_results = results
 
-        # Search results
-        search_results = result.get("search_results", [])
-        search_msg = f"✅ **Step 1/3 Complete** — Found {len(search_results)} sources\n\n"
-        for i, r in enumerate(search_results, 1):
-            search_msg += f"{i}. [{r.get('title', 'No title')}]({r.get('url', '')})\n"
-        await cl.Message(content=search_msg).send()
+                # Show immediately — user sees this after ~3 seconds
+                queries_text = "\n".join(
+                    [f"  - `{q}`" for q in queries]
+                )
+                sources_text = "\n".join(
+                    [f"{i}. [{r.get('title','No title')}]({r.get('url','')})"
+                     for i, r in enumerate(results, 1)]
+                )
 
-        # Research summary
-        await cl.Message(content="📚 **Step 2/3 Complete** — Research synthesized\n").send()
+                await cl.Message(
+                    content=(
+                        f"✅ **Search Complete**\n\n"
+                        f"**Queries used:**\n{queries_text}\n\n"
+                        f"**Sources found ({len(results)}):**\n"
+                        f"{sources_text}"
+                    )
+                ).send()
 
-        summary = result.get("research_summary", "")
-        if summary:
-            await cl.Message(content=f"### 📋 Research Summary\n\n{summary}").send()
+            # ── CHUNK FROM RESEARCH AGENT ─────────────────────────
+            elif "research_agent" in chunk:
+                data    = chunk["research_agent"]
+                summary = data.get("research_summary", "")
+                scraped = data.get("scraped_content", [])
+                error   = data.get("error")
 
-        # Thread
-        thread = result.get("thread", [])
+                # Save for stats
+                final_summary = summary
+
+                # Show scrape stats immediately
+                total    = len(final_search_results)
+                scraped_count = len(scraped)
+                blocked  = total - scraped_count
+
+                await cl.Message(
+                    content=(
+                        f"✅ **Research Complete**\n\n"
+                        f"| Metric | Value |\n"
+                        f"|--------|-------|\n"
+                        f"| URLs attempted | {total} |\n"
+                        f"| Successfully scraped | {scraped_count} |\n"
+                        f"| Blocked (403) | {blocked} |\n"
+                        f"| Summary length | {len(summary)} chars |\n"
+                    )
+                ).send()
+
+                # Show error if research had issues
+                if error:
+                    await cl.Message(
+                        content=f"⚠️ **Research warning:** {error}"
+                    ).send()
+
+                # Show full summary
+                if summary:
+                    await cl.Message(
+                        content=f"### 📋 Research Summary\n\n{summary}"
+                    ).send()
+
+            # ── CHUNK FROM PUBLISHER AGENT ────────────────────────
+            elif "publisher_agent" in chunk:
+                data   = chunk["publisher_agent"]
+                thread = data.get("thread", [])
+                status = data.get("final_status", "unknown")
+                error  = data.get("error")
+
+                # Save for stats
+                final_thread  = thread
+                final_status  = status
+                final_error   = error
+
+                # Show publish status
+                if status == "completed":
+                    await cl.Message(
+                        content="✅ **Published to Telegram successfully**"
+                    ).send()
+                elif status == "post_failed":
+                    await cl.Message(
+                        content=f"⚠️ **Telegram post failed:** {error}"
+                    ).send()
+
+                # Show the thread
+                if thread:
+                    thread_msg = "### 📨 Your Research Thread\n\n"
+                    for i, post in enumerate(thread, 1):
+                        thread_msg += (
+                            f"**Post {i}** ({len(post)} chars)\n\n"
+                            f"{post}\n\n"
+                            f"---\n\n"
+                        )
+                    await cl.Message(content=thread_msg).send()
+
+        # ── FINAL STATS — shown after all agents complete ──────────
+        status_icon = "✅" if final_status == "completed" else "❌"
         await cl.Message(
-            content=f"✍️ **Step 3/3 Complete** — Thread generated & posted to Telegram"
+            content=(
+                f"### 📊 Pipeline Complete\n\n"
+                f"| Metric | Value |\n"
+                f"|--------|-------|\n"
+                f"| Status | {status_icon} {final_status} |\n"
+                f"| Sources found | {len(final_search_results)} |\n"
+                f"| Thread posts | {len(final_thread)} |\n"
+                f"| Telegram | "
+                f"{'✅ Posted' if final_status == 'completed' else '❌ Failed'} |\n"
+            )
         ).send()
-
-        if thread:
-            thread_msg = "### 📨 Your Research Thread\n\n"
-            for i, post in enumerate(thread, 1):
-                thread_msg += f"**Post {i}** ({len(post)} chars)\n{post}\n\n"
-                thread_msg += "---\n"
-            await cl.Message(content=thread_msg).send()
-
-        # Stats
-        scraped = result.get("scraped_content", [])
-        status  = result.get("final_status", "unknown")
-        error   = result.get("error")
-
-        stats_msg = (
-            f"### 📊 Pipeline Stats\n\n"
-            f"| Metric | Value |\n"
-            f"|--------|-------|\n"
-            f"| Status | {'✅ ' if status == 'completed' else '❌ '}{status} |\n"
-            f"| Sources Found | {len(search_results)} |\n"
-            f"| Sources Scraped | {len(scraped)} |\n"
-            f"| Thread Posts | {len(thread)} |\n"
-            f"| Telegram | {'✅ Posted' if status == 'completed' else '❌ Failed'} |\n"
-        )
-
-        if error:
-            stats_msg += f"\n⚠️ **Error:** {error}"
-
-        await cl.Message(content=stats_msg).send()
 
     except Exception as e:
         await cl.Message(
-            content=f"❌ **Pipeline failed**\n\n```\n{str(e)}\n```\n\nPlease try again."
+            content=(
+                f"❌ **Pipeline failed**\n\n"
+                f"```\n{str(e)}\n```\n\n"
+                f"Check terminal for full traceback."
+            )
         ).send()
+        # Also print to terminal for debugging
+        import traceback
+        traceback.print_exc()
