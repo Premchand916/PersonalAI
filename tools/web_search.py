@@ -1,54 +1,71 @@
-# tools/web_search.py
-
 import os
-from tavily import TavilyClient
+from functools import lru_cache
+
 from dotenv import load_dotenv
+
+try:
+    from tavily import TavilyClient
+except ImportError:
+    TavilyClient = None
 
 load_dotenv()
 
-# Initialize once, reuse everywhere
-tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+
+class WebSearchError(RuntimeError):
+    """Raised when Tavily search cannot be completed."""
+
+
+@lru_cache(maxsize=1)
+def get_tavily_client():
+    if TavilyClient is None:
+        raise WebSearchError(
+            "tavily-python is not installed. Install the project dependencies first."
+        )
+
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        raise WebSearchError("TAVILY_API_KEY is not set.")
+
+    return TavilyClient(api_key=api_key)
+
 
 def web_search(query: str, max_results: int = 5) -> list[dict]:
-    """
-    Search the web using Tavily.
-    Returns a list of results, each with: title, url, content snippet.
-    
-    Why Tavily over Google?
-    - Built specifically for AI agents
-    - Returns clean text (no HTML garbage)
-    - Free tier is generous
-    - One line to call, structured output back
-    """
+    if not query.strip():
+        return []
+
     try:
-        response = tavily.search(
+        client = get_tavily_client()
+        response = client.search(
             query=query,
             max_results=max_results,
-            search_depth="advanced",    # deeper crawl than basic
-            include_answer=False,       # we want raw results, not a summary
+            search_depth="advanced",
+            include_answer=False,
         )
-        
-        # Extract only what we need — clean it up
+
         results = []
         for item in response.get("results", []):
             results.append({
-                "title":   item.get("title", ""),
-                "url":     item.get("url", ""),
-                "snippet": item.get("content", ""),  # short text preview
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("content", ""),
             })
-        
+
         return results
+    except Exception as exc:
+        message = str(exc).lower()
+        if (
+            "failed to establish a new connection" in message
+            or "forbidden by its access permissions" in message
+        ):
+            raise WebSearchError(
+                "Could not reach Tavily. Check your internet access, firewall, or proxy settings."
+            ) from exc
+        raise WebSearchError(f"Tavily search failed: {exc}") from exc
 
-    except Exception as e:
-        # Never let a tool crash silently
-        print(f"[web_search] ERROR: {e}")
-        return []   # return empty list, not None — agents expect a list
 
-
-# ── Quick test (run this file directly to verify) ──────────────
 if __name__ == "__main__":
     results = web_search("latest AI agent frameworks 2026")
-    for r in results:
-        print(f"\nTitle:   {r['title']}")
-        print(f"URL:     {r['url']}")
-        print(f"Snippet: {r['snippet'][:100]}...")
+    for result in results:
+        print(f"\nTitle:   {result['title']}")
+        print(f"URL:     {result['url']}")
+        print(f"Snippet: {result['snippet'][:100]}...")
