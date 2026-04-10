@@ -23,10 +23,10 @@
 #
 # PIPELINE FLOW (Sessions 2–6, built incrementally):
 #
-#   Session 2 ✅:  watchlist_agent (REAL) → graph_agent (stub) → END
-#   Session 3 ✅:  watchlist_agent (REAL) → graph_agent (REAL) → briefing_agent (stub) → END
-#   Session 5:     + briefing_agent (full Jinja2 template)
-#   Session 6:     + alert_agent   (importance scoring + Telegram)
+#   Session 2 ✅:  watchlist_agent (REAL)
+#   Session 3 ✅:  graph_agent     (REAL)
+#   Session 5 ✅:  briefing_agent  (REAL — Jinja2 template)
+#   Session 6 ✅:  alert_agent     (REAL — Telegram delivery)
 #   Session 7:     hooked into APScheduler for 9am auto-run
 #
 # ROUTING LOGIC
@@ -42,89 +42,12 @@
 
 from langgraph.graph import END, StateGraph
 
+from agents.alert_agent import alert_agent_node
+from agents.briefing_agent import briefing_agent_node
 from agents.graph_agent import graph_agent_node
 from agents.watchlist_agent import watchlist_agent_node
 from orchestrator.state import PersonalAIState
 from tools.secrets_guard import safe_log
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# STUB NODES — placeholders for agents not yet built
-# These will be replaced session-by-session with real implementations.
-# Having stubs here means the full pipeline can be tested end-to-end
-# even while individual agents are still being built.
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _briefing_agent_stub(state: PersonalAIState) -> dict:
-    """
-    Placeholder for BriefingAgent (Session 5).
-    Generates a minimal plain-text brief from delta_events.
-    """
-    safe_log("[BriefingAgent] STUB — Session 5 will replace this with Jinja2 template")
-    delta_events = state.get("delta_events", [])
-    importance   = state.get("importance_scores", {})
-
-    if not delta_events:
-        brief = "No significant changes detected in watched topics overnight."
-    else:
-        lines = [
-            f"IntelligenceOS Morning Brief — {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            f"",
-            f"{len(delta_events)} delta(s) detected:",
-            "",
-        ]
-        for event in delta_events:
-            score = importance.get(event["topic"], 0)
-            lines.append(f"• [{score:.1f}/10] {event['topic']}")
-            lines.append(f"  {event['summary'][:200]}")
-            lines.append(f"  Source: {event['source_url']}")
-            lines.append("")
-
-        brief = "\n".join(lines)
-
-    safe_log(f"[BriefingAgent] Brief generated ({len(brief)} chars)")
-
-    return {
-        "formatted_brief": brief,
-        "current_agent":   "alert_agent",
-    }
-
-
-def _alert_agent_stub(state: PersonalAIState) -> dict:
-    """
-    Placeholder for AlertAgent (Session 6).
-    Logs what WOULD be sent without actually sending Telegram messages.
-    """
-    safe_log("[AlertAgent] STUB — Session 6 will replace this with real Telegram delivery")
-    importance   = state.get("importance_scores", {})
-    brief        = state.get("formatted_brief",  "")
-    threshold    = 7.0
-
-    high_importance = {
-        topic: score
-        for topic, score in importance.items()
-        if score >= threshold
-    }
-
-    if high_importance:
-        safe_log(
-            f"[AlertAgent] STUB — Would send ALERT for: "
-            f"{list(high_importance.keys())} (scores: {high_importance})"
-        )
-    else:
-        safe_log("[AlertAgent] STUB — No topics above alert threshold")
-
-    safe_log(
-        f"[AlertAgent] STUB — Would send morning brief "
-        f"({len(brief)} chars) to Telegram"
-    )
-
-    return {
-        "alert_sent":    bool(high_importance),
-        "final_status":  "completed",
-        "current_agent": "end",
-    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -156,8 +79,8 @@ def build_intelligence_graph():
     # ── Register nodes ────────────────────────────────────────────────────────
     graph.add_node("watchlist_agent",  watchlist_agent_node)  # Session 2 — REAL
     graph.add_node("graph_agent",      graph_agent_node)       # Session 3 — REAL
-    graph.add_node("briefing_agent",   _briefing_agent_stub)   # Session 5 — stub
-    graph.add_node("alert_agent",      _alert_agent_stub)      # Session 6 — stub
+    graph.add_node("briefing_agent",   briefing_agent_node)    # Session 5 — REAL
+    graph.add_node("alert_agent",      alert_agent_node)       # Session 6 — REAL
 
     # ── Set entry point ───────────────────────────────────────────────────────
     graph.set_entry_point("watchlist_agent")

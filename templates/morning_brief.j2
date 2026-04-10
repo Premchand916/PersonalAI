@@ -1,0 +1,56 @@
+🧠 IntelligenceOS Morning Brief
+{{ date }}  •  {{ time }}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{% if executive_summary %}
+📋 EXECUTIVE SUMMARY
+{{ executive_summary }}
+
+{% endif %}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{% if delta_events %}
+🔔 WHAT CHANGED OVERNIGHT  ({{ delta_events|length }} delta{% if delta_events|length != 1 %}s{% endif %})
+
+{% for event in delta_events %}
+{% set score = importance_scores.get(event.topic, 0) %}
+{% if score >= 8.0 %}🔴{% elif score >= 5.0 %}🟡{% else %}🟢{% endif %} [{{ "%.1f"|format(score) }}/10]  {{ event.topic|upper }}
+{{ event.summary }}
+🔗 {{ event.source_url }}
+
+{% endfor %}
+{% else %}
+✅ No significant changes detected in any watched topics.
+
+{% endif %}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{% if new_connections %}
+🕸️  NEW CONNECTIONS FOUND  ({{ new_connections|length }})
+
+{% for conn in new_connections %}
+💡 {{ conn.label_a }} ↔ {{ conn.label_b }}
+   {{ conn.why_notable }}
+
+{% endfor %}
+{% else %}
+📊 Knowledge graph updated — no surprising new bridges detected today.
+
+{% endif %}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{% if action_items %}
+✅ ACTION ITEMS FOR TODAY
+
+{% for item in action_items %}
+  {{ loop.index }}. {{ item }}
+{% endfor %}
+
+{% endif %}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 STATS
+  Topics watched   : {{ topics_watched }}
+  Deltas found     : {{ delta_events|length }}
+  Graph nodes      : {{ graph_nodes }}
+  Graph edges      : {{ graph_edges }}
+  New connections  : {{ new_connections|length }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Powered by IntelligenceOS v2  •  PersonalAI
