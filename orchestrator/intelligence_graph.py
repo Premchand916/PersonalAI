@@ -23,12 +23,11 @@
 #
 # PIPELINE FLOW (Sessions 2–6, built incrementally):
 #
-#   Session 2 (NOW):    watchlist_agent → [stub] graph_agent → END
-#   Session 3:          watchlist_agent → graph_agent → [stub] briefing_agent → END
-#   Session 4:          watchlist_agent → graph_agent → briefing_agent → END
-#   Session 5:          + briefing_agent (full Jinja2 template)
-#   Session 6:          + alert_agent   (importance scoring + Telegram)
-#   Session 7:          hooked into APScheduler for 9am auto-run
+#   Session 2 ✅:  watchlist_agent (REAL) → graph_agent (stub) → END
+#   Session 3 ✅:  watchlist_agent (REAL) → graph_agent (REAL) → briefing_agent (stub) → END
+#   Session 5:     + briefing_agent (full Jinja2 template)
+#   Session 6:     + alert_agent   (importance scoring + Telegram)
+#   Session 7:     hooked into APScheduler for 9am auto-run
 #
 # ROUTING LOGIC
 # ──────────────
@@ -43,6 +42,7 @@
 
 from langgraph.graph import END, StateGraph
 
+from agents.graph_agent import graph_agent_node
 from agents.watchlist_agent import watchlist_agent_node
 from orchestrator.state import PersonalAIState
 from tools.secrets_guard import safe_log
@@ -54,22 +54,6 @@ from tools.secrets_guard import safe_log
 # Having stubs here means the full pipeline can be tested end-to-end
 # even while individual agents are still being built.
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _graph_agent_stub(state: PersonalAIState) -> dict:
-    """
-    Placeholder for GraphAgent (Session 3).
-    Passes through delta_events unchanged.
-    Returns an empty knowledge_graph and new_connections.
-    """
-    safe_log("[GraphAgent] STUB — Session 3 will replace this")
-    delta_count = len(state.get("delta_events", []))
-    safe_log(f"[GraphAgent] Received {delta_count} delta events (passing through)")
-
-    return {
-        "knowledge_graph":  {},    # Real NetworkX graph added in Session 3
-        "new_connections":  [],    # Real connection detection added in Session 3
-        "current_agent":    "briefing_agent",
-    }
 
 
 def _briefing_agent_stub(state: PersonalAIState) -> dict:
@@ -171,7 +155,7 @@ def build_intelligence_graph():
 
     # ── Register nodes ────────────────────────────────────────────────────────
     graph.add_node("watchlist_agent",  watchlist_agent_node)  # Session 2 — REAL
-    graph.add_node("graph_agent",      _graph_agent_stub)      # Session 3 — stub
+    graph.add_node("graph_agent",      graph_agent_node)       # Session 3 — REAL
     graph.add_node("briefing_agent",   _briefing_agent_stub)   # Session 5 — stub
     graph.add_node("alert_agent",      _alert_agent_stub)      # Session 6 — stub
 
