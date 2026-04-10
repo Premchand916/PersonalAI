@@ -179,6 +179,23 @@ def save_run(
     conn.close()
 
     safe_log(f"[Memory] Saved run #{run_id}: '{task[:50]}'")
+
+    # ── Auto-index into Qdrant for semantic search (Session 8) ───────────────
+    # Only index completed runs with a real summary — failed runs have no signal.
+    # Import here (not at top) to avoid circular import.
+    if status != "failed" and summary:
+        try:
+            from tools.vector_store import embed_and_index
+            embed_and_index(
+                run_id=     run_id,
+                task=       task,
+                summary=    summary,
+                created_at= created_at,
+            )
+        except Exception as e:
+            # Never let vector indexing break the save — SQLite is the source of truth
+            safe_log(f"[Memory] Vector index skipped for run #{run_id}: {e}", level="WARN")
+
     return run_id
 
 

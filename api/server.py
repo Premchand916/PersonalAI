@@ -351,6 +351,61 @@ async def remove_watchlist_topic(topic: str) -> dict:
     return {"removed": True, "topic": topic}
 
 
+@app.get("/intelligence/search")
+async def semantic_search(q: str, top_k: int = 5, min_score: float = 0.3) -> dict:
+    """
+    Semantic search over all past research runs.
+
+    Finds runs that are MEANING-similar to your query — not just
+    keyword matches. Uses sentence-transformers + Qdrant cosine similarity.
+
+    Args:
+        q:         Natural language query (full sentence recommended)
+        top_k:     Max results to return (default: 5)
+        min_score: Minimum cosine similarity 0.0–1.0 (default: 0.3)
+
+    Example:
+        GET /intelligence/search?q=stateful+agent+orchestration+patterns
+        → returns runs about LangGraph, StateGraph, agent memory pipelines
+          even if those exact words weren't in your query
+    """
+    from tools.vector_store import semantic_search as vs_search, collection_info
+
+    if not q.strip():
+        raise HTTPException(status_code=400, detail="Query 'q' cannot be empty.")
+
+    results = vs_search(query=q, top_k=top_k, min_score=min_score)
+    info    = collection_info()
+
+    return {
+        "query":        q,
+        "results_count":len(results),
+        "results": [
+            {
+                "run_id":     r.run_id,
+                "score":      r.score,
+                "task":       r.task,
+                "summary":    r.summary[:300],
+                "created_at": r.created_at,
+            }
+            for r in results
+        ],
+        "index_info": info,
+    }
+
+
+@app.post("/intelligence/index")
+async def reindex_all() -> dict:
+    """
+    Bulk-index all existing research runs into Qdrant.
+    Run this ONCE after first installing Session 8 to backfill history.
+    New runs are indexed automatically via save_run().
+    """
+    from tools.vector_store import index_all_runs
+    count = await asyncio.to_thread(index_all_runs)
+    return {"indexed": count, "message": f"Successfully indexed {count} research runs."}
+
+
 @app.get("/intelligence/scheduler")
 async def scheduler_status() -> dict:
     """Return current scheduler status and next job run time."""
