@@ -3,8 +3,10 @@ import sys
 import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+from tools.secrets_guard import validate_env
+validate_env("main.py")
 from orchestrator.graph import build_graph
-from memory.store import init_db, save_run    # ← ADD THIS
+from memory.store import init_db, save_run
 
 def run(task: str, post_to_telegram: bool = False):
     graph  = build_graph()

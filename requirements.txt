@@ -1,9 +1,24 @@
-beautifulsoup4
-fastapi
-httpx
-langchain-ollama
-langgraph
-python-dotenv
-python-telegram-bot
-tavily-python
-uvicorn
+# ─────────────────────────────────────────────────────────────────────────────
+# PersonalAI / IntelligenceOS — Python Dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+# Install:  pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# ── v1 core (unchanged) ───────────────────────────────────────────────────────
+beautifulsoup4          # HTML parsing for web scraper
+fastapi                 # REST API framework
+httpx                   # Async HTTP client for scraper
+langchain-ollama        # Ollama LLM wrapper for LangChain/LangGraph
+langgraph               # Multi-agent orchestration (StateGraph)
+python-dotenv           # Load .env files into os.environ
+python-telegram-bot     # Telegram Bot API for publishing briefs
+tavily-python           # Tavily web search API client
+uvicorn                 # ASGI server for FastAPI
+
+# ── v2 additions (IntelligenceOS) ─────────────────────────────────────────────
+apscheduler             # Scheduled jobs — 9am morning brief cron
+networkx                # In-memory knowledge graph (nodes + edges)
+qdrant-client           # Vector database — local mode, no Docker needed
+sentence-transformers   # Embed research summaries for semantic search
+Jinja2                  # Templated morning brief format
